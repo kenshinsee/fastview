@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastView</title>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism-themes/1.9.0/prism-vsc-dark-plus.min.css"
+        rel="stylesheet" />
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+
+    <style>
+        :root {
+            --vscode-bg: #1e1e1e;
+            --vscode-sidebar: #252526;
+            --vscode-border: #333333;
+            --vscode-active: #37373d;
+            --vscode-accent: #007acc;
+        }
+
+        body {
+            background-color: var(--vscode-bg);
+            font-family: "JetBrains Mono", "Fira Code", "Menlo", monospace;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3e3e3e;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4f4f4f;
+        }
+
+        .subdir {
+            border-left: 1px solid #444;
+            margin-left: 18px;
+        }
+
+        /* 深度定制 Prism 样式对齐 VS Code */
+        pre[class*="language-"] {
+            margin: 0 !important;
+            padding: 24px !important;
+            background: transparent !important;
+            font-size: 13px !important;
+            line-height: 1.6 !important;
+        }
+
+        code[class*="language-"] {
+            font-family: inherit !important;
+        }
+
+        iframe {
+            background: white;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .file-row:hover {
+            background-color: #2a2d2e;
+        }
+
+        .file-row.active {
+            background-color: var(--vscode-active);
+            color: #fff;
+            box-shadow: inset 2px 0 0 var(--vscode-accent);
+        }
+
+        .lucide {
+            width: 14px;
+            height: 14px;
+            stroke-width: 2px;
+        }
+    </style>
+</head>
+
+<body class="text-gray-400 h-screen flex overflow-hidden selection:bg-blue-500/30">
+
+    <aside id="sidebar" class="w-64 flex-shrink-0 bg-[#252526] flex flex-col border-r border-[#333] select-none">
+        <div class="px-4 py-3 flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Explorer</span>
+            <i data-lucide="refresh-cw" onclick="location.reload()"
+                class="cursor-pointer hover:text-white transition-colors w-3 h-3"></i>
+        </div>
+        <div id="file-list" class="flex-1 overflow-y-auto overflow-x-hidden py-1 text-[13px]">
+        </div>
+    </aside>
+    <div id="resizer"
+        class="w-1 -ml-0.5 cursor-col-resize hover:bg-[#007acc] transition-colors bg-transparent z-10 active:bg-[#007acc]">
+    </div>
+
+    <main class="flex-1 flex flex-col overflow-hidden bg-[#1e1e1e]">
+        <div class="h-9 bg-[#252526] flex items-center justify-between px-4 border-b border-[#111]">
+            <div class="flex items-center space-x-2 overflow-hidden">
+                <i id="header-icon" data-lucide="file" class="text-gray-500 shrink-0"></i>
+                <span id="current-filename" class="text-[12px] text-gray-400 truncate font-medium">No file opened</span>
+            </div>
+            <div id="html-toggle" class="hidden flex bg-[#333] rounded p-0.5">
+                <button id="btn-preview" onclick="switchMode('preview')"
+                    class="px-3 py-1 rounded text-[10px] uppercase font-bold transition-all">Preview</button>
+                <button id="btn-code" onclick="switchMode('code')"
+                    class="px-3 py-1 rounded text-[10px] uppercase font-bold transition-all">Code</button>
+            </div>
+        </div>
+
+        <div id="content-area" class="flex-1 overflow-auto relative">
+            <div id="welcome" class="h-full flex flex-col items-center justify-center space-y-3 opacity-10">
+                <i data-lucide="terminal" class="w-20 h-20"></i>
+                <p class="text-sm font-medium tracking-widest">WORKSPACE</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const BASE_URL = '/my-files/';
+        let currentFilePath = '';
+        let currentFileText = '';
+
+        // 1. 核心函数：渲染目录树
+        async function renderTree(path, container) {
+            try {
+                const res = await fetch(`${BASE_URL}${path}`);
+                if (!res.ok) throw new Error('Failed to fetch directory');
+                const files = await res.json();
+                container.innerHTML = '';
+
+                // 排序：文件夹在前
+                files.sort((a, b) => (b.type === 'directory') - (a.type === 'directory')).forEach(file => {
+                    const isDir = file.type === 'directory';
+                    const fullPath = path + file.name + (isDir ? '/' : '');
+
+                    const itemWrapper = document.createElement('div');
+                    const row = document.createElement('div');
+                    row.className = `file-row flex items-center px-4 py-[3px] cursor-pointer transition-colors`;
+                    row.innerHTML = `
+                        <i data-lucide="${isDir ? 'chevron-right' : 'file-text'}" class="mr-1.5 ${isDir ? 'text-gray-500' : 'text-blue-400/70'}"></i>
+                        <span class="truncate">${file.name}</span>
+                    `;
+
+                    const subContainer = document.createElement('div');
+                    subContainer.className = "subdir hidden";
+
+                    row.onclick = async (e) => {
+                        e.stopPropagation();
+                        if (isDir) {
+                            const isHidden = subContainer.classList.contains('hidden');
+                            if (isHidden) {
+                                subContainer.classList.remove('hidden');
+                                row.querySelector('[data-lucide]').setAttribute('data-lucide', 'chevron-down');
+                                if (subContainer.innerHTML === '') {
+                                    subContainer.innerHTML = '<div class="px-8 py-1 text-[10px] text-gray-600">Loading...</div>';
+                                    await renderTree(fullPath, subContainer);
+                                }
+                            } else {
+                                subContainer.classList.add('hidden');
+                                row.querySelector('[data-lucide]').setAttribute('data-lucide', 'chevron-right');
+                            }
+                            // 必须重新调用以刷新图标
+                            lucide.createIcons();
+                        } else {
+                            // 高亮当前选中的文件行
+                            document.querySelectorAll('.file-row').forEach(r => r.classList.remove('active'));
+                            row.classList.add('active');
+                            handlePreview(fullPath);
+                        }
+                    };
+
+                    itemWrapper.appendChild(row);
+                    itemWrapper.appendChild(subContainer);
+                    container.appendChild(itemWrapper);
+                });
+                lucide.createIcons();
+            } catch (e) {
+                console.error("Tree Load Error:", e);
+                container.innerHTML = `<div class="px-8 py-1 text-red-500 text-[10px]">Access denied or empty</div>`;
+            }
+        }
+
+        // 2. 预览处理逻辑
+        async function handlePreview(path) {
+            currentFilePath = path;
+            const filename = path.split('/').filter(Boolean).pop();
+
+            // 隐藏欢迎界面
+            const welcome = document.getElementById('welcome');
+            if (welcome) welcome.style.display = 'none';
+
+            document.getElementById('current-filename').innerText = filename;
+            document.getElementById('html-toggle').classList.add('hidden');
+
+            const area = document.getElementById('content-area');
+            area.innerHTML = '<div class="flex items-center justify-center h-full text-[10px] text-gray-600 tracking-widest animate-pulse">STREAMING DATA...</div>';
+
+            // 设置顶部图标
+            const iconName = path.endsWith('.html') ? 'layout' : path.endsWith('.py') ? 'play-circle' : 'file-text';
+            document.getElementById('header-icon').setAttribute('data-lucide', iconName);
+            lucide.createIcons();
+
+            const url = BASE_URL + path;
+            if (path.match(/\.(png|jpg|pdf)$/i)) {
+                area.innerHTML = `<iframe src="${url}"></iframe>`;
+            } else {
+                try {
+                    const response = await fetch(url);
+                    const buffer = await response.arrayBuffer();
+                    currentFileText = new TextDecoder('utf-8').decode(buffer);
+
+                    if (path.endsWith('.html')) {
+                        document.getElementById('html-toggle').classList.remove('hidden');
+                        switchMode('preview'); // HTML 默认开启预览模式
+                    } else {
+                        renderCode(currentFileText, filename);
+                    }
+                } catch (e) {
+                    area.innerHTML = `<div class="p-10 text-red-500 text-xs font-mono">ERROR: ${e.message}</div>`;
+                }
+            }
+        }
+
+        // 3. 代码高亮渲染
+        function renderCode(text, filename) {
+            const area = document.getElementById('content-area');
+            area.scrollTop = 0;
+            const ext = filename.split('.').pop();
+            const langMap = { 'py': 'python', 'md': 'markdown', 'json': 'json', 'js': 'javascript', 'html': 'html' };
+            const lang = langMap[ext] || 'text';
+
+            const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            area.innerHTML = `<pre class="language-${lang}"><code class="language-${lang}">${safeText}</code></pre>`;
+            Prism.highlightAllUnder(area);
+        }
+
+        // 4. HTML 模式切换
+        function switchMode(mode) {
+            const area = document.getElementById('content-area');
+            const btnP = document.getElementById('btn-preview');
+            const btnC = document.getElementById('btn-code');
+
+            if (mode === 'preview') {
+                area.innerHTML = `<iframe src="${BASE_URL + currentFilePath}"></iframe>`;
+                btnP.className = "px-3 py-1 rounded text-[10px] bg-[#007acc] text-white font-bold";
+                btnC.className = "px-3 py-1 rounded text-[10px] text-gray-400 hover:text-white";
+            } else {
+                renderCode(currentFileText, currentFilePath.split('/').pop());
+                btnC.className = "px-3 py-1 rounded text-[10px] bg-[#007acc] text-white font-bold";
+                btnP.className = "px-3 py-1 rounded text-[10px] text-gray-400 hover:text-white";
+            }
+        }
+
+        // 5. 侧边栏缩放逻辑
+        const sidebar = document.getElementById('sidebar');
+        const resizer = document.getElementById('resizer');
+        let isResizing = false;
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', stopResizing);
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+        });
+
+        function handleMouseMove(e) {
+            if (!isResizing) return;
+            const newWidth = e.clientX;
+            if (newWidth > 160 && newWidth < 600) {
+                sidebar.style.width = `${newWidth}px`;
+            }
+        }
+
+        function stopResizing() {
+            isResizing = false;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', stopResizing);
+            document.body.style.cursor = 'default';
+            document.body.style.userSelect = 'auto';
+        }
+
+        // 初始化根目录
+        renderTree('', document.getElementById('file-list'));
+    </script>
+</body>
+
+</html>
