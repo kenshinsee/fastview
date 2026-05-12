@@ -34,6 +34,36 @@ echo ""
 [[ "${FILES_PATH}" != */ ]] && FILES_PATH="${FILES_PATH}/"
 [[ "${PROJECT_PATH}" != */ ]] && PROJECT_PATH="${PROJECT_PATH}/"
 
+# --- Configure Permissions ---
+echo_info "Configuring directory permissions for Nginx..."
+
+setup_permissions() {
+    local target_path="$1"
+    
+    # Check if directory exists
+    if [ ! -d "$target_path" ]; then
+        echo_error "Directory $target_path does not exist."
+        exit 1
+    fi
+
+    # Find the group owner of the directory
+    local dir_group=$(stat -c "%G" "$target_path")
+    
+    # Add www-data to the directory's group
+    usermod -a -G "$dir_group" www-data
+    
+    # Ensure traversal permissions (g+x) on all parent directories
+    local path="$target_path"
+    while [[ "$path" != "/" && "$path" != "." && -n "$path" ]]; do
+        chmod g+x "$path"
+        path=$(dirname "$path")
+    done
+}
+
+# The paths have a trailing slash due to earlier string manipulation. We should strip it for stat or dirname to work cleanly, but dirname handles trailing slashes mostly okay. Actually, dirname "/path/to/dir/" is "/path/to", which is fine.
+setup_permissions "${FILES_PATH}"
+setup_permissions "${PROJECT_PATH}"
+
 # --- Generate .htpasswd ---
 echo_info "Setting up Basic Authentication..."
 htpasswd -bc /etc/nginx/.htpasswd "$AUTH_USER" "$AUTH_PASS"
