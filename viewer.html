@@ -16,6 +16,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 
     <style>
         :root {
@@ -50,7 +52,6 @@
             margin-left: 18px;
         }
 
-        /* 深度定制 Prism 样式对齐 VS Code */
         pre[class*="language-"] {
             margin: 0 !important;
             padding: 24px !important;
@@ -59,8 +60,119 @@
             line-height: 1.6 !important;
         }
 
+        pre.code-nowrap[class*="language-"],
+        pre.code-nowrap {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+
+        pre.code-wrap[class*="language-"],
+        pre.code-wrap[class*="language-"] code[class*="language-"],
+        pre.code-wrap,
+        pre.code-wrap code,
+        code.code-wrap {
+            white-space: pre-wrap !important;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            max-width: 100%;
+        }
+
+        pre.code-nowrap[class*="language-"] code[class*="language-"],
+        pre.code-nowrap code,
+        code.code-nowrap {
+            white-space: pre !important;
+        }
+
         code[class*="language-"] {
             font-family: inherit !important;
+        }
+
+        .md-preview {
+            padding: 24px 32px;
+            max-width: 900px;
+            line-height: 1.65;
+            color: #d4d4d4;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 14px;
+        }
+
+        .md-preview h1,
+        .md-preview h2,
+        .md-preview h3 {
+            color: #e8e8e8;
+            font-weight: 600;
+            margin: 1.25em 0 0.5em;
+        }
+
+        .md-preview h1 {
+            font-size: 1.75em;
+            border-bottom: 1px solid #444;
+            padding-bottom: 0.3em;
+        }
+
+        .md-preview h2 {
+            font-size: 1.35em;
+            border-bottom: 1px solid #333;
+            padding-bottom: 0.25em;
+        }
+
+        .md-preview a {
+            color: #3794ff;
+        }
+
+        .md-preview code {
+            font-family: "JetBrains Mono", "Fira Code", Menlo, monospace;
+            font-size: 0.9em;
+            background: #2d2d2d;
+            padding: 0.15em 0.35em;
+            border-radius: 4px;
+        }
+
+        .md-preview pre {
+            background: #252526;
+            padding: 16px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 1em 0;
+        }
+
+        .md-preview pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        .md-preview blockquote {
+            border-left: 4px solid #007acc;
+            margin: 1em 0;
+            padding-left: 1em;
+            color: #aaa;
+        }
+
+        .md-preview ul,
+        .md-preview ol {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+
+        .md-preview table {
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+
+        .md-preview th,
+        .md-preview td {
+            border: 1px solid #444;
+            padding: 6px 12px;
+        }
+
+        .preview-error {
+            margin: 12px 16px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            background: #3a1f1f;
+            color: #f48771;
+            font-size: 12px;
+            font-family: inherit;
         }
 
         iframe {
@@ -85,6 +197,60 @@
             height: 14px;
             stroke-width: 2px;
         }
+
+        .tab-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            max-width: 200px;
+            padding: 0 10px;
+            height: 35px;
+            font-size: 12px;
+            color: #969696;
+            border-right: 1px solid #252526;
+            background: #2d2d2d;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .tab-item:hover {
+            background: #323232;
+            color: #ccc;
+        }
+
+        .tab-item.active {
+            background: #1e1e1e;
+            color: #fff;
+            border-top: 1px solid var(--vscode-accent);
+        }
+
+        .tab-close {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px;
+            border-radius: 4px;
+            opacity: 0.6;
+        }
+
+        .tab-close:hover {
+            opacity: 1;
+            background: #444;
+        }
+
+        .dir-refresh {
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .file-row:hover .dir-refresh {
+            opacity: 0.7;
+        }
+
+        .dir-refresh:hover {
+            opacity: 1 !important;
+            color: #fff;
+        }
     </style>
 </head>
 
@@ -93,8 +259,12 @@
     <aside id="sidebar" class="w-64 flex-shrink-0 bg-[#252526] flex flex-col border-r border-[#333] select-none">
         <div class="px-4 py-3 flex items-center justify-between">
             <span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Explorer</span>
-            <i data-lucide="refresh-cw" onclick="location.reload()"
-                class="cursor-pointer hover:text-white transition-colors w-3 h-3"></i>
+            <button type="button" id="btn-refresh-workspace"
+                class="p-0.5 rounded hover:text-white transition-colors text-gray-500"
+                title="Reload root folder listing and refresh the active file tab (tabs stay open)"
+                aria-label="Reload root folder listing and refresh the active file tab">
+                <i data-lucide="refresh-cw" class="w-3 h-3"></i>
+            </button>
         </div>
         <div id="file-list" class="flex-1 overflow-y-auto overflow-x-hidden py-1 text-[13px]">
         </div>
@@ -104,169 +274,500 @@
     </div>
 
     <main class="flex-1 flex flex-col overflow-hidden bg-[#1e1e1e]">
-        <div class="h-9 bg-[#252526] flex items-center justify-between px-4 border-b border-[#111]">
-            <div class="flex items-center space-x-2 overflow-hidden">
-                <i id="header-icon" data-lucide="file" class="text-gray-500 shrink-0"></i>
-                <span id="current-filename" class="text-[12px] text-gray-400 truncate font-medium">No file opened</span>
+        <div id="tab-bar"
+            class="h-9 bg-[#252526] flex items-end overflow-x-auto overflow-y-hidden border-b border-[#111] shrink-0">
+        </div>
+        <div class="h-9 bg-[#252526] flex items-center justify-between px-4 border-b border-[#111] shrink-0">
+            <div class="flex items-center gap-2">
+                <button type="button" id="btn-wrap"
+                    class="hidden px-3 py-1 rounded text-[10px] uppercase font-bold transition-all bg-[#333] text-gray-400 hover:text-white"
+                    title="Toggle word wrap for the current file">Wrap</button>
             </div>
             <div id="html-toggle" class="hidden flex bg-[#333] rounded p-0.5">
-                <button id="btn-preview" onclick="switchMode('preview')"
+                <button type="button" id="btn-preview"
                     class="px-3 py-1 rounded text-[10px] uppercase font-bold transition-all">Preview</button>
-                <button id="btn-code" onclick="switchMode('code')"
+                <button type="button" id="btn-code"
                     class="px-3 py-1 rounded text-[10px] uppercase font-bold transition-all">Code</button>
             </div>
         </div>
 
-        <div id="content-area" class="flex-1 overflow-auto relative">
-            <div id="welcome" class="h-full flex flex-col items-center justify-center space-y-3 opacity-10">
+        <div id="content-area" class="flex-1 overflow-hidden relative">
+            <div id="welcome" class="absolute inset-0 flex flex-col items-center justify-center space-y-3 opacity-10">
                 <i data-lucide="terminal" class="w-20 h-20"></i>
                 <p class="text-sm font-medium tracking-widest">WORKSPACE</p>
             </div>
+            <div id="file-view" class="hidden absolute inset-0 overflow-auto"></div>
         </div>
     </main>
 
     <script>
         const BASE_URL = '/my-files/';
-        let currentFilePath = '';
-        let currentFileText = '';
+        let tabIdSeq = 0;
+        const tabs = [];
+        const tabsByPath = new Map();
+        let activeTabId = null;
 
-        // 1. 核心函数：渲染目录树
-        async function renderTree(path, container) {
+        function bustUrl(path) {
+            const base = BASE_URL + path;
+            const sep = base.includes('?') ? '&' : '?';
+            return `${base}${sep}_=${Date.now()}`;
+        }
+
+        function isMediaPath(path) {
+            return /\.(png|jpg|jpeg|gif|webp|pdf)$/i.test(path);
+        }
+
+        function isMarkdownPath(path) {
+            return /\.(md|markdown)$/i.test(path);
+        }
+
+        function tabHasPreview(tab) {
+            return tab.isHtml || tab.isMarkdown;
+        }
+
+        function markdownLibsReady() {
+            return typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined';
+        }
+
+        function getActiveTab() {
+            return tabs.find(t => t.id === activeTabId) || null;
+        }
+
+        function collectExpandedPaths() {
+            const paths = new Set();
+            document.querySelectorAll('.subdir:not(.hidden)').forEach(sub => {
+                const row = sub.previousElementSibling;
+                if (row && row.dataset.path) paths.add(row.dataset.path);
+            });
+            return paths;
+        }
+
+        function setRowExpanded(row, subContainer, expanded) {
+            const chevron = row.querySelector('.dir-chevron');
+            if (expanded) {
+                subContainer.classList.remove('hidden');
+                if (chevron) chevron.setAttribute('data-lucide', 'chevron-down');
+            } else {
+                subContainer.classList.add('hidden');
+                if (chevron) chevron.setAttribute('data-lucide', 'chevron-right');
+            }
+        }
+
+        async function renderTree(path, container, expandedPaths) {
             try {
-                const res = await fetch(`${BASE_URL}${path}`);
+                const res = await fetch(`${BASE_URL}${path}`, { cache: 'no-store' });
                 if (!res.ok) throw new Error('Failed to fetch directory');
                 const files = await res.json();
-                container.innerHTML = '';
+                container.replaceChildren();
 
-                // 排序：文件夹在前
-                files.sort((a, b) => (b.type === 'directory') - (a.type === 'directory')).forEach(file => {
+                files.sort((a, b) => (b.type === 'directory') - (a.type === 'directory'));
+
+                for (const file of files) {
                     const isDir = file.type === 'directory';
                     const fullPath = path + file.name + (isDir ? '/' : '');
 
                     const itemWrapper = document.createElement('div');
                     const row = document.createElement('div');
-                    row.className = `file-row flex items-center px-4 py-[3px] cursor-pointer transition-colors`;
-                    row.innerHTML = `
-                        <i data-lucide="${isDir ? 'chevron-right' : 'file-text'}" class="mr-1.5 ${isDir ? 'text-gray-500' : 'text-blue-400/70'}"></i>
-                        <span class="truncate">${file.name}</span>
-                    `;
+                    row.className = 'file-row flex items-center px-4 py-[3px] cursor-pointer transition-colors';
+                    row.dataset.path = fullPath;
+                    row.dataset.isDir = isDir ? 'true' : 'false';
 
-                    const subContainer = document.createElement('div');
-                    subContainer.className = "subdir hidden";
+                    const chevron = document.createElement('i');
+                    chevron.className = `dir-chevron mr-1.5 shrink-0 ${isDir ? 'text-gray-500' : 'text-blue-400/70'}`;
+                    chevron.setAttribute('data-lucide', isDir ? 'chevron-right' : 'file-text');
 
-                    row.onclick = async (e) => {
-                        e.stopPropagation();
-                        if (isDir) {
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'truncate flex-1 min-w-0';
+                    nameSpan.textContent = file.name;
+
+                    row.appendChild(chevron);
+                    row.appendChild(nameSpan);
+
+                    if (isDir) {
+                        const refreshBtn = document.createElement('button');
+                        refreshBtn.type = 'button';
+                        refreshBtn.className = 'dir-refresh ml-1 shrink-0 p-0.5 rounded';
+                        refreshBtn.title = 'Refresh this folder listing';
+                        refreshBtn.setAttribute('aria-label', 'Refresh this folder listing');
+                        const refreshIcon = document.createElement('i');
+                        refreshIcon.setAttribute('data-lucide', 'refresh-cw');
+                        refreshIcon.className = 'w-3 h-3';
+                        refreshBtn.appendChild(refreshIcon);
+                        row.appendChild(refreshBtn);
+
+                        const subContainer = document.createElement('div');
+                        subContainer.className = 'subdir hidden';
+
+                        refreshBtn.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            const wasExpanded = !subContainer.classList.contains('hidden');
+                            subContainer.replaceChildren();
+                            const loading = document.createElement('div');
+                            loading.className = 'px-8 py-1 text-[10px] text-gray-600';
+                            loading.textContent = 'Loading...';
+                            subContainer.appendChild(loading);
+                            if (wasExpanded) subContainer.classList.remove('hidden');
+                            await renderTree(fullPath, subContainer, null);
+                            if (wasExpanded) {
+                                setRowExpanded(row, subContainer, true);
+                                lucide.createIcons();
+                            }
+                        });
+
+                        row.addEventListener('click', async (e) => {
+                            if (e.target.closest('.dir-refresh')) return;
+                            e.stopPropagation();
                             const isHidden = subContainer.classList.contains('hidden');
                             if (isHidden) {
-                                subContainer.classList.remove('hidden');
-                                row.querySelector('[data-lucide]').setAttribute('data-lucide', 'chevron-down');
-                                if (subContainer.innerHTML === '') {
-                                    subContainer.innerHTML = '<div class="px-8 py-1 text-[10px] text-gray-600">Loading...</div>';
-                                    await renderTree(fullPath, subContainer);
+                                setRowExpanded(row, subContainer, true);
+                                lucide.createIcons();
+                                if (subContainer.childElementCount === 0) {
+                                    subContainer.replaceChildren();
+                                    const loading = document.createElement('div');
+                                    loading.className = 'px-8 py-1 text-[10px] text-gray-600';
+                                    loading.textContent = 'Loading...';
+                                    subContainer.appendChild(loading);
+                                    await renderTree(fullPath, subContainer, null);
                                 }
                             } else {
-                                subContainer.classList.add('hidden');
-                                row.querySelector('[data-lucide]').setAttribute('data-lucide', 'chevron-right');
+                                setRowExpanded(row, subContainer, false);
+                                lucide.createIcons();
                             }
-                            // 必须重新调用以刷新图标
-                            lucide.createIcons();
-                        } else {
-                            // 高亮当前选中的文件行
-                            document.querySelectorAll('.file-row').forEach(r => r.classList.remove('active'));
-                            row.classList.add('active');
-                            handlePreview(fullPath);
-                        }
-                    };
+                        });
 
-                    itemWrapper.appendChild(row);
-                    itemWrapper.appendChild(subContainer);
-                    container.appendChild(itemWrapper);
-                });
+                        itemWrapper.appendChild(row);
+                        itemWrapper.appendChild(subContainer);
+                        container.appendChild(itemWrapper);
+
+                        if (expandedPaths && expandedPaths.has(fullPath)) {
+                            setRowExpanded(row, subContainer, true);
+                            await renderTree(fullPath, subContainer, expandedPaths);
+                        }
+                    } else {
+                        row.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            highlightFileRow(fullPath);
+                            openFile(fullPath);
+                        });
+                        itemWrapper.appendChild(row);
+                        container.appendChild(itemWrapper);
+                    }
+                }
                 lucide.createIcons();
             } catch (e) {
-                console.error("Tree Load Error:", e);
-                container.innerHTML = `<div class="px-8 py-1 text-red-500 text-[10px]">Access denied or empty</div>`;
+                console.error('Tree Load Error:', e);
+                container.replaceChildren();
+                const err = document.createElement('div');
+                err.className = 'px-8 py-1 text-red-500 text-[10px]';
+                err.textContent = 'Access denied or empty';
+                container.appendChild(err);
             }
         }
 
-        // 2. 预览处理逻辑
-        async function handlePreview(path) {
-            currentFilePath = path;
-            const filename = path.split('/').filter(Boolean).pop();
+        function highlightFileRow(path) {
+            document.querySelectorAll('.file-row[data-is-dir="false"]').forEach(r => {
+                r.classList.toggle('active', r.dataset.path === path);
+            });
+        }
 
-            // 隐藏欢迎界面
-            const welcome = document.getElementById('welcome');
-            if (welcome) welcome.style.display = 'none';
+        function showWelcome() {
+            document.getElementById('welcome').classList.remove('hidden');
+            document.getElementById('file-view').classList.add('hidden');
+            updateToolbar();
+        }
 
-            document.getElementById('current-filename').innerText = filename;
-            document.getElementById('html-toggle').classList.add('hidden');
+        function showFileView() {
+            document.getElementById('welcome').classList.add('hidden');
+            const view = document.getElementById('file-view');
+            view.classList.remove('hidden');
+            return view;
+        }
 
-            const area = document.getElementById('content-area');
-            area.innerHTML = '<div class="flex items-center justify-center h-full text-[10px] text-gray-600 tracking-widest animate-pulse">STREAMING DATA...</div>';
+        function openFile(path) {
+            let tab = tabsByPath.get(path);
+            if (tab) {
+                activateTab(tab.id);
+                return;
+            }
 
-            // 设置顶部图标
-            const iconName = path.endsWith('.html') ? 'layout' : path.endsWith('.py') ? 'play-circle' : 'file-text';
-            document.getElementById('header-icon').setAttribute('data-lucide', iconName);
-            lucide.createIcons();
+            const filename = path.split('/').filter(Boolean).pop() || path;
+            const isHtml = path.endsWith('.html');
+            const isMarkdown = isMarkdownPath(path);
+            tab = {
+                id: ++tabIdSeq,
+                path,
+                filename,
+                text: '',
+                mode: (isHtml || isMarkdown) ? 'preview' : 'code',
+                wrap: true,
+                isHtml,
+                isMarkdown,
+                isMedia: isMediaPath(path),
+            };
+            tabs.push(tab);
+            tabsByPath.set(path, tab);
+            activateTab(tab.id);
+        }
 
-            const url = BASE_URL + path;
-            if (path.match(/\.(png|jpg|pdf)$/i)) {
-                area.innerHTML = `<iframe src="${url}"></iframe>`;
-            } else {
-                try {
-                    const response = await fetch(url);
-                    const buffer = await response.arrayBuffer();
-                    currentFileText = new TextDecoder('utf-8').decode(buffer);
+        async function loadTabContent(tab, rerenderIfActive) {
+            if (tab.id === activeTabId) {
+                const area = showFileView();
+                area.replaceChildren();
+                const loading = document.createElement('div');
+                loading.className = 'flex items-center justify-center h-full text-[10px] text-gray-600 tracking-widest animate-pulse';
+                loading.textContent = 'STREAMING DATA...';
+                area.appendChild(loading);
+            }
 
-                    if (path.endsWith('.html')) {
-                        document.getElementById('html-toggle').classList.remove('hidden');
-                        switchMode('preview'); // HTML 默认开启预览模式
-                    } else {
-                        renderCode(currentFileText, filename);
-                    }
-                } catch (e) {
-                    area.innerHTML = `<div class="p-10 text-red-500 text-xs font-mono">ERROR: ${e.message}</div>`;
+            if (tab.isMedia) {
+                if (tab.id === activeTabId || rerenderIfActive) renderTabContent(tab);
+                return;
+            }
+
+            try {
+                const response = await fetch(bustUrl(tab.path), { cache: 'no-store' });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const buffer = await response.arrayBuffer();
+                tab.text = new TextDecoder('utf-8').decode(buffer);
+                if (tab.id === activeTabId || rerenderIfActive) renderTabContent(tab);
+            } catch (e) {
+                if (tab.id === activeTabId) {
+                    const area = showFileView();
+                    area.replaceChildren();
+                    const err = document.createElement('div');
+                    err.className = 'p-10 text-red-500 text-xs font-mono';
+                    err.textContent = `ERROR: ${e.message}`;
+                    area.appendChild(err);
                 }
             }
         }
 
-        // 3. 代码高亮渲染
-        function renderCode(text, filename) {
-            const area = document.getElementById('content-area');
-            area.scrollTop = 0;
-            const ext = filename.split('.').pop();
-            const langMap = { 'py': 'python', 'md': 'markdown', 'json': 'json', 'js': 'javascript', 'html': 'html' };
-            const lang = langMap[ext] || 'text';
+        function renderTabBar() {
+            const bar = document.getElementById('tab-bar');
+            bar.replaceChildren();
+            tabs.forEach(tab => {
+                const tabBtn = document.createElement('div');
+                tabBtn.className = `tab-item cursor-pointer ${tab.id === activeTabId ? 'active' : ''}`;
+                tabBtn.setAttribute('role', 'tab');
+                tabBtn.setAttribute('aria-selected', tab.id === activeTabId ? 'true' : 'false');
 
-            const safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            area.innerHTML = `<pre class="language-${lang}"><code class="language-${lang}">${safeText}</code></pre>`;
-            Prism.highlightAllUnder(area);
+                const label = document.createElement('span');
+                label.className = 'truncate';
+                label.textContent = tab.filename;
+
+                const closeBtn = document.createElement('button');
+                closeBtn.type = 'button';
+                closeBtn.className = 'tab-close shrink-0';
+                closeBtn.setAttribute('aria-label', `Close ${tab.filename}`);
+                const closeIcon = document.createElement('i');
+                closeIcon.setAttribute('data-lucide', 'x');
+                closeIcon.className = 'w-3 h-3';
+                closeBtn.appendChild(closeIcon);
+
+                closeBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    closeTab(tab.id);
+                });
+
+                tabBtn.addEventListener('click', () => activateTab(tab.id));
+
+                tabBtn.appendChild(label);
+                tabBtn.appendChild(closeBtn);
+                bar.appendChild(tabBtn);
+            });
+            lucide.createIcons();
         }
 
-        // 4. HTML 模式切换
-        function switchMode(mode) {
-            const area = document.getElementById('content-area');
-            const btnP = document.getElementById('btn-preview');
-            const btnC = document.getElementById('btn-code');
-
-            if (mode === 'preview') {
-                area.innerHTML = `<iframe src="${BASE_URL + currentFilePath}"></iframe>`;
-                btnP.className = "px-3 py-1 rounded text-[10px] bg-[#007acc] text-white font-bold";
-                btnC.className = "px-3 py-1 rounded text-[10px] text-gray-400 hover:text-white";
+        function activateTab(id) {
+            activeTabId = id;
+            const tab = getActiveTab();
+            renderTabBar();
+            updateToolbar();
+            if (!tab) return;
+            highlightFileRow(tab.path);
+            if (tab.isMedia || tab.text !== '') {
+                renderTabContent(tab);
             } else {
-                renderCode(currentFileText, currentFilePath.split('/').pop());
-                btnC.className = "px-3 py-1 rounded text-[10px] bg-[#007acc] text-white font-bold";
-                btnP.className = "px-3 py-1 rounded text-[10px] text-gray-400 hover:text-white";
+                loadTabContent(tab, true);
             }
         }
 
-        // 5. 侧边栏缩放逻辑
+        function closeTab(id) {
+            const idx = tabs.findIndex(t => t.id === id);
+            if (idx === -1) return;
+            const tab = tabs[idx];
+            tabs.splice(idx, 1);
+            tabsByPath.delete(tab.path);
+
+            if (tab.id !== activeTabId) {
+                renderTabBar();
+                return;
+            }
+
+            if (tabs.length === 0) {
+                activeTabId = null;
+                renderTabBar();
+                document.querySelectorAll('.file-row.active').forEach(r => r.classList.remove('active'));
+                showWelcome();
+                return;
+            }
+
+            const newIdx = Math.min(idx, tabs.length - 1);
+            activateTab(tabs[newIdx].id);
+        }
+
+        function updateToolbar() {
+            const tab = getActiveTab();
+            const htmlToggle = document.getElementById('html-toggle');
+            const btnWrap = document.getElementById('btn-wrap');
+            const btnP = document.getElementById('btn-preview');
+            const btnC = document.getElementById('btn-code');
+
+            if (!tab) {
+                htmlToggle.classList.add('hidden');
+                btnWrap.classList.add('hidden');
+                return;
+            }
+
+            if (tabHasPreview(tab)) {
+                htmlToggle.classList.remove('hidden');
+                if (tab.mode === 'preview') {
+                    btnP.className = 'px-3 py-1 rounded text-[10px] bg-[#007acc] text-white font-bold';
+                    btnC.className = 'px-3 py-1 rounded text-[10px] text-gray-400 hover:text-white';
+                } else {
+                    btnC.className = 'px-3 py-1 rounded text-[10px] bg-[#007acc] text-white font-bold';
+                    btnP.className = 'px-3 py-1 rounded text-[10px] text-gray-400 hover:text-white';
+                }
+            } else {
+                htmlToggle.classList.add('hidden');
+            }
+
+            const showWrap = tab && !tab.isMedia && (!tabHasPreview(tab) || tab.mode === 'code');
+            if (showWrap) {
+                btnWrap.classList.remove('hidden');
+                if (tab.wrap) {
+                    btnWrap.className = 'px-3 py-1 rounded text-[10px] uppercase font-bold transition-all bg-[#007acc] text-white';
+                    btnWrap.title = 'Word wrap is on (click to disable)';
+                } else {
+                    btnWrap.className = 'px-3 py-1 rounded text-[10px] uppercase font-bold transition-all bg-[#333] text-gray-400 hover:text-white';
+                    btnWrap.title = 'Word wrap is off (click to enable)';
+                }
+            } else {
+                btnWrap.classList.add('hidden');
+            }
+        }
+
+        function renderTabContent(tab) {
+            const area = showFileView();
+            area.replaceChildren();
+            area.scrollTop = 0;
+
+            if (tab.isMedia) {
+                const iframe = document.createElement('iframe');
+                iframe.src = bustUrl(tab.path);
+                area.appendChild(iframe);
+                return;
+            }
+
+            if (tab.isHtml && tab.mode === 'preview') {
+                const iframe = document.createElement('iframe');
+                iframe.src = bustUrl(tab.path);
+                area.appendChild(iframe);
+                return;
+            }
+
+            if (tab.isMarkdown && tab.mode === 'preview') {
+                const previewResult = renderMarkdownPreview(area, tab.text);
+                if (previewResult.ok) return;
+                tab.mode = 'code';
+                updateToolbar();
+                const errBanner = document.createElement('div');
+                errBanner.className = 'preview-error';
+                errBanner.textContent = previewResult.error;
+                area.appendChild(errBanner);
+                renderCodeInto(area, tab.text, tab.filename, tab.wrap);
+                return;
+            }
+
+            renderCodeInto(area, tab.text, tab.filename, tab.wrap);
+        }
+
+        function renderMarkdownPreview(area, text) {
+            if (!markdownLibsReady()) {
+                return { ok: false, error: 'Markdown preview unavailable: marked or DOMPurify failed to load.' };
+            }
+            try {
+                const parsed = marked.parse(text, { async: false });
+                const html = typeof parsed === 'string' ? parsed : '';
+                const clean = DOMPurify.sanitize(html);
+                const wrap = document.createElement('div');
+                wrap.className = 'md-preview';
+                wrap.innerHTML = clean;
+                area.appendChild(wrap);
+                return { ok: true };
+            } catch (e) {
+                return { ok: false, error: `Markdown preview failed: ${e.message}` };
+            }
+        }
+
+        function renderCodeInto(area, text, filename, wrap) {
+            const lower = filename.toLowerCase();
+            let lang = 'text';
+            if (lower.endsWith('.markdown')) lang = 'markdown';
+            else {
+                const ext = filename.split('.').pop();
+                const langMap = { py: 'python', md: 'markdown', json: 'json', js: 'javascript', html: 'html' };
+                lang = langMap[ext] || 'text';
+            }
+            const wrapClass = wrap ? 'code-wrap' : 'code-nowrap';
+
+            const pre = document.createElement('pre');
+            pre.className = `language-${lang} ${wrapClass}`;
+            const code = document.createElement('code');
+            code.className = `language-${lang} ${wrapClass}`;
+            code.textContent = text;
+            pre.appendChild(code);
+            area.appendChild(pre);
+            Prism.highlightElement(code);
+        }
+
+        function switchMode(mode) {
+            const tab = getActiveTab();
+            if (!tab || !tabHasPreview(tab)) return;
+            tab.mode = mode;
+            updateToolbar();
+            renderTabContent(tab);
+        }
+
+        function toggleWrap() {
+            const tab = getActiveTab();
+            if (!tab || tab.isMedia) return;
+            if (tabHasPreview(tab) && tab.mode === 'preview') return;
+            tab.wrap = !tab.wrap;
+            updateToolbar();
+            renderTabContent(tab);
+        }
+
+        async function refreshWorkspace() {
+            const expanded = collectExpandedPaths();
+            const fileList = document.getElementById('file-list');
+            await renderTree('', fileList, expanded);
+            const tab = getActiveTab();
+            if (tab) await loadTabContent(tab, true);
+        }
+
+        document.getElementById('btn-refresh-workspace').addEventListener('click', () => {
+            refreshWorkspace();
+        });
+        document.getElementById('btn-preview').addEventListener('click', () => switchMode('preview'));
+        document.getElementById('btn-code').addEventListener('click', () => switchMode('code'));
+        document.getElementById('btn-wrap').addEventListener('click', () => toggleWrap());
+
         const sidebar = document.getElementById('sidebar');
         const resizer = document.getElementById('resizer');
         let isResizing = false;
 
-        resizer.addEventListener('mousedown', (e) => {
+        resizer.addEventListener('mousedown', () => {
             isResizing = true;
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', stopResizing);
@@ -277,9 +778,7 @@
         function handleMouseMove(e) {
             if (!isResizing) return;
             const newWidth = e.clientX;
-            if (newWidth > 160 && newWidth < 600) {
-                sidebar.style.width = `${newWidth}px`;
-            }
+            if (newWidth > 160 && newWidth < 600) sidebar.style.width = `${newWidth}px`;
         }
 
         function stopResizing() {
@@ -290,8 +789,8 @@
             document.body.style.userSelect = 'auto';
         }
 
-        // 初始化根目录
-        renderTree('', document.getElementById('file-list'));
+        renderTree('', document.getElementById('file-list'), null);
+        lucide.createIcons();
     </script>
 </body>
 

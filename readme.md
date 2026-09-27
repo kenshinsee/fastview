@@ -4,6 +4,10 @@
 
 ## Features
 - VS Code inspired UI (Sidebar explorer, file tabs, code highlighting).
+- **Multi-file tabs**: open several files at once; duplicate paths focus the existing tab; each tab keeps its own Preview/Code and word-wrap state.
+- **Refresh**: explorer header reloads the root listing and refreshes the active file (tabs stay open); each folder has its own refresh control. File and iframe loads bypass browser cache.
+- **Word wrap**: code view wraps by default; use the Wrap toggle per tab to switch horizontal scrolling.
+- **Markdown preview**: `.md` / `.markdown` files open in Preview by default (sanitized `marked` + DOMPurify); switch to Code for the raw source with Prism highlighting.
 - Supports Python, Markdown, JSON, HTML, and more.
 - Built-in PDF and Image preview.
 - Directory navigation with Nginx JSON autoindex.
